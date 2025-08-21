@@ -1,0 +1,32 @@
+# PixelLens Configuration
+# Step-by-step pixel validation test cases
+
+test_cases:
+  # Basic page load validation (no interactions)
+  basic_pageload:
+    description: "Simple page load pixel validation"
+    start_url: "https://www.myfavoritecarwebsite.com"
+    steps:
+      - name: "Page Load"
+        action: "load_page"
+        expect_pixels: ["Google Tag Manager", "Google Analytics 4", "Facebook Pixel", "TikTok", "Snowplow"]
+
+  # Search flow
+  search_flow:
+    description: "Search for a car on your favorite car website"
+    start_url: "https://www.myfavoritecarwebsite.com"
+    steps:
+      - name: "Page Load"
+        action: "load_page"
+        expect_pixels: ["Google Analytics 4", "Facebook Pixel", "TikTok", "Snowplow"]
+        
+      - name: "Search Action"
+        action: "Search for a Used Ford F-150 in zip 02115"
+        expect_pixels: ["Google Analytics 4", "Facebook Pixel", "TikTok", "Snowplow"]
+
+# Default configuration settings
+default_config:
+  timeout: 30 # Timeout in seconds per step
+  headless: true # Run browser in headless mode
+  wait_for_network_idle: true # Wait for network to be idle between steps
+  step_delay: 2 # Seconds to wait between steps for pixels to fire
