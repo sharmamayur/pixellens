@@ -1,7 +1,7 @@
 # Project Code Style Guidelines
 
 ## Python
-- Formatting: Use Black for all Python code formatting.
+- Formatting: Use Ruff for all Python code formatting.
 
 ## Personality
 
