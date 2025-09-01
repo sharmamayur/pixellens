@@ -88,35 +88,75 @@ Create `config.yml` with step-by-step test cases:
 
 ```yaml
 test_cases:
-  # E-commerce funnel validation
+  # E-commerce funnel validation with URL parameter validation
   ecommerce_complete_flow:
     description: "Full e-commerce purchase funnel validation"
     start_url: "https://demo.evershop.io"
     steps:
       - name: "Page Load"
         action: "load_page"
-        expect_pixels: ["GA4 page_view", "Facebook PageView"]
+        expect_pixels:
+          "Google Analytics 4":
+            url_params:
+              - name: "tid"
+                value: "G-1234567890"
+              - name: "en"
+                value: "page_view"
+          "Facebook Pixel":
+            url_params:
+              - name: "id"
+                value: "123456789"
+              - name: "ev"
+                value: "PageView"
         
       - name: "View Product"  
         action: "Click on any product link"
-        expect_pixels: ["GA4 view_item", "Facebook ViewContent"]
+        expect_pixels:
+          "Google Analytics 4":
+            url_params:
+              - name: "tid"
+                value: "G-1234567890"
+              - name: "en"
+                value: "view_item"
+          "Facebook Pixel":
+            url_params:
+              - name: "ev"
+                value: "ViewContent"
         
       - name: "Add to Cart"
         action: "Click add to cart button"  
-        expect_pixels: ["GA4 add_to_cart", "Facebook AddToCart"]
+        expect_pixels:
+          "Google Analytics 4":
+            url_params:
+              - name: "en"
+                value: "add_to_cart"
+          "Facebook Pixel":
+            url_params:
+              - name: "ev"
+                value: "AddToCart"
         
       - name: "Start Checkout"
         action: "Navigate to checkout page"
-        expect_pixels: ["GA4 begin_checkout", "Facebook InitiateCheckout"]
+        expect_pixels:
+          "Google Analytics 4":
+            url_params:
+              - name: "en"
+                value: "begin_checkout"
+          "Facebook Pixel":
+            url_params:
+              - name: "ev"
+                value: "InitiateCheckout"
 
-  # Simple page load test
+  # Simple page load test (vendors without URL validation)
   basic_pageload:
     description: "Simple page load pixel validation"
     start_url: "https://example.com"
     steps:
       - name: "Page Load"
         action: "load_page"
-        expect_pixels: ["GA4 page_view", "Hotjar"]
+        expect_pixels:
+          "Google Analytics 4": {}
+          "Hotjar": {}
 
 # Global settings
 default_config:
@@ -125,6 +165,46 @@ default_config:
   wait_for_network_idle: true # Wait for network to be idle between steps
   step_delay: 2 # Seconds to wait between steps for pixels to fire
 ```
+
+### Expected Pixels Configuration
+
+PixelLens supports two levels of pixel validation:
+
+#### 1. Vendor Detection Only
+Simply verify that a vendor's pixels are firing, without validating specific parameters:
+
+```yaml
+expect_pixels:
+  "Google Analytics 4": {}
+  "Facebook Pixel": {}
+  "Hotjar": {}
+```
+
+#### 2. URL Parameter Validation
+Validate specific URL parameters in the tracking requests for precise pixel validation:
+
+```yaml
+expect_pixels:
+  "Google Analytics 4":
+    url_params:
+      - name: "tid"          # Google Analytics Tracking ID
+        value: "G-1234567890"
+      - name: "en"           # Event Name
+        value: "page_view"
+  "Facebook Pixel":
+    url_params:
+      - name: "id"           # Facebook Pixel ID
+        value: "123456789"
+      - name: "ev"           # Event
+        value: "PageView"
+  "TikTok": {}             # No parameter validation needed
+```
+
+**Key Benefits of URL Parameter Validation:**
+- **Precision**: Ensure specific events are firing (e.g., `page_view` vs `purchase`)
+- **Configuration Validation**: Verify correct tracking IDs are being used
+- **Multiple Requests**: If a vendor fires multiple pixels, validation passes if ANY request contains all expected parameters
+- **Flexible**: Mix parameter validation with simple detection per vendor
 
 ### Action Types
 
@@ -146,9 +226,9 @@ default_config:
       "action": "load_page",
       "success": true,
       "execution_time": 3.21,
-      "expected_pixels": ["GA4 page_view", "Facebook PageView"],
+      "expected_pixels": ["Google Analytics 4", "Facebook Pixel"],
       "detected_pixels": ["Google Analytics 4", "Facebook Pixel"],
-      "passed_pixels": ["GA4 page_view", "Facebook PageView"],
+      "passed_pixels": ["Google Analytics 4", "Facebook Pixel"],
       "failed_pixels": []
     },
     {
@@ -156,9 +236,9 @@ default_config:
       "action": "Click on any product link",
       "success": true,
       "execution_time": 8.45,
-      "expected_pixels": ["GA4 view_item", "Facebook ViewContent"],
+      "expected_pixels": ["Google Analytics 4", "Facebook Pixel"],
       "detected_pixels": ["Google Analytics 4", "Facebook Pixel"],
-      "passed_pixels": ["GA4 view_item", "Facebook ViewContent"],
+      "passed_pixels": ["Google Analytics 4", "Facebook Pixel"],
       "failed_pixels": []
     }
   ]
