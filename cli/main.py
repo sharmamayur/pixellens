@@ -263,7 +263,7 @@ def _load_test_case(
         step = ValidationStep(
             name=step_data.get("name", ""),
             action=step_data.get("action", ""),
-            expect_pixels=step_data.get("expect_pixels", []),
+            expect_pixels=step_data.get("expect_pixels", {}),
         )
         config.steps.append(step)
 

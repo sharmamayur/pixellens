@@ -139,7 +139,7 @@ class NetworkMonitor:
         """Classify pixel by vendor/platform"""
         classifications = {
             "Google Analytics 4": re.compile(
-                r"gtag|google-analytics\.com.*\/g\/collect"
+                r"gtag|google-analytics|analytics\.google\.com.*\/g\/collect"
             ),
             "Universal Analytics": re.compile(
                 r"google-analytics\.com.*\/collect(?!.*\/g\/)"

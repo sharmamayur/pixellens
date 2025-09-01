@@ -23,11 +23,13 @@ class TestValidationStep:
 
     def test_creation(self):
         step = ValidationStep(
-            name="Test Step", action="load_page", expect_pixels=["GA4", "Facebook"]
+            name="Test Step", 
+            action="load_page", 
+            expect_pixels={"GA4": {}, "Facebook": {}}
         )
         assert step.name == "Test Step"
         assert step.action == "load_page"
-        assert step.expect_pixels == ["GA4", "Facebook"]
+        assert step.expect_pixels == {"GA4": {}, "Facebook": {}}
 
 
 class TestTagValidator:

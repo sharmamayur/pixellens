@@ -19,12 +19,28 @@ console = Console()
 
 
 @dataclass
+class UrlParam:
+    """URL parameter validation rule"""
+
+    name: str
+    value: str
+
+
+@dataclass
+class ExpectedPixel:
+    """Expected pixel with optional URL parameter validation"""
+
+    vendor: str
+    url_params: List[UrlParam] = field(default_factory=list)
+
+
+@dataclass
 class ValidationStep:
     """Single step in a validation journey"""
 
     name: str
     action: str
-    expect_pixels: List[str] = field(default_factory=list)
+    expect_pixels: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -70,7 +86,7 @@ class ValidationResult:
 class TagValidator:
     """Main pixel validation engine using browser-use AI agent"""
 
-    def __init__(self, options: Dict[str, Any] = None):
+    def __init__(self, options: Optional[Dict[str, Any]] = None):
         self.options = options or {}
         self.default_config = ValidationConfig(
             headless=self.options.get("headless", True),
@@ -121,7 +137,7 @@ class TagValidator:
 
                         # Validate expected pixels for this step
                         step_result = self._validate_step_pixels(
-                            step, detected_vendors, time.time() - step_start_time
+                            step, step_summary, time.time() - step_start_time
                         )
 
                         step_results.append(step_result)
@@ -129,17 +145,21 @@ class TagValidator:
                         if not step_result.success:
                             all_success = False
 
+                        expected_names = sorted(step_result.expected_pixels)
+                        detected_sorted = sorted(detected_vendors)
                         console.print(
                             f"  {'✅' if step_result.success else '❌'} "
-                            f"Expected: {step.expect_pixels} | "
-                            f"Detected: {detected_vendors}"
+                            f"Expected: {expected_names} | "
+                            f"Detected: {detected_sorted}"
                         )
 
                     except Exception as step_error:
                         step_result = StepResult(
                             step_name=step.name,
                             action=step.action,
-                            expected_pixels=step.expect_pixels,
+                            expected_pixels=self._parse_expected_pixels(
+                                step.expect_pixels
+                            ),
                             success=False,
                             error=str(step_error),
                             execution_time=time.time() - step_start_time,
@@ -162,7 +182,8 @@ class TagValidator:
             except Exception as error:
                 execution_time = time.time() - start_time
                 console.print(
-                    f"❌ [bold red]Error in test case {test_case_name}:[/bold red] {error!s}"
+                    f"❌ [bold red]Error in test case {test_case_name}:[/bold red] "
+                    f"{error!s}"
                 )
 
                 if "browser" in locals():
@@ -197,7 +218,8 @@ class TagValidator:
 
             strict_prompt = f"""
 CRITICAL CONSTRAINTS:
-- You are a pixel tracking expert. You are given a description of an action to take on a website. You are to take that action and that action only.
+- You are a pixel tracking expert. You are given a description of an action
+  to take on a website. You are to take that action and that action only.
 - NEVER navigate away from {domain} - STAY ON THIS WEBSITE ONLY
 - Complete ONLY this specific action: {action_description}
 - Do NOT open new tabs or windows
@@ -226,31 +248,92 @@ TASK: {action_description}
         except Exception as error:
             console.print(f"⚠️  [bold yellow]AI action failed:[/bold yellow] {error!s}")
 
+    def _parse_expected_pixels(
+        self, expect_pixels_config: Dict[str, Any]
+    ) -> List[ExpectedPixel]:
+        """Parse expect_pixels configuration into ExpectedPixel objects"""
+        expected_pixels = []
+        for vendor, config in expect_pixels_config.items():
+            url_params = []
+            if config and "url_params" in config:
+                for param_config in config["url_params"]:
+                    url_params.append(
+                        UrlParam(name=param_config["name"], value=param_config["value"])
+                    )
+            expected_pixels.append(ExpectedPixel(vendor=vendor, url_params=url_params))
+        return expected_pixels
+
     def _validate_step_pixels(
-        self, step: ValidationStep, detected_vendors: List[str], execution_time: float
+        self, step: ValidationStep, step_summary, execution_time: float
     ) -> StepResult:
         """Validate detected pixels against step expectations"""
+        from urllib.parse import parse_qs, urlparse
+
+        expected_pixels = self._parse_expected_pixels(step.expect_pixels)
+        detected_vendors = list(step_summary.pixels_by_vendor.keys())
         passed_pixels = []
         failed_pixels = []
 
-        for expected_pixel in step.expect_pixels:
-            found = any(
-                expected_pixel.lower() in vendor.lower()
-                or vendor.lower() in expected_pixel.lower()
+        for expected_pixel in expected_pixels:
+            # Check if vendor is detected
+            vendor_found = any(
+                expected_pixel.vendor.lower() in vendor.lower()
+                or vendor.lower() in expected_pixel.vendor.lower()
                 for vendor in detected_vendors
             )
 
-            if found:
-                passed_pixels.append(expected_pixel)
+            if not vendor_found:
+                failed_pixels.append(expected_pixel.vendor)
+                continue
+
+            # If vendor is found and no URL params specified, it's a pass
+            if not expected_pixel.url_params:
+                passed_pixels.append(expected_pixel.vendor)
+                continue
+
+            # Validate URL parameters
+            param_validation_passed = False
+
+            # Find matching vendor's requests
+            for vendor_name, requests in step_summary.pixels_by_vendor.items():
+                if (
+                    expected_pixel.vendor.lower() in vendor_name.lower()
+                    or vendor_name.lower() in expected_pixel.vendor.lower()
+                ):
+                    # Check each request from this vendor
+                    for request in requests:
+                        parsed_url = urlparse(request.url)
+                        url_params = parse_qs(parsed_url.query)
+
+                        # Check if all expected URL parameters match in this request
+                        all_params_match = True
+                        for expected_param in expected_pixel.url_params:
+                            param_values = url_params.get(expected_param.name, [])
+                            if expected_param.value not in param_values:
+                                all_params_match = False
+                                break
+
+                        # If this request matches all expected params, we're good
+                        if all_params_match:
+                            param_validation_passed = True
+                            break
+
+                    if param_validation_passed:
+                        break
+
+            if param_validation_passed:
+                passed_pixels.append(expected_pixel.vendor)
             else:
-                failed_pixels.append(expected_pixel)
+                failed_pixels.append(expected_pixel.vendor)
 
         success = len(failed_pixels) == 0
+
+        expected_pixel_names = [p.vendor for p in expected_pixels]
 
         return StepResult(
             step_name=step.name,
             action=step.action,
-            expected_pixels=step.expect_pixels,
+            expected_pixels=expected_pixel_names,
             detected_pixels=detected_vendors,
             passed_pixels=passed_pixels,
             failed_pixels=failed_pixels,
